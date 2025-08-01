@@ -3,8 +3,8 @@ import logging
 from flask import Flask, request, jsonify, render_template_string
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-from dotenv import load_dotenv
 import asyncio
+from dotenv import load_dotenv
 import threading
 
 # Загружаем переменные окружения
