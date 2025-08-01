@@ -2,8 +2,7 @@ import os
 import logging
 from flask import Flask, request, jsonify, render_template_string
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-import asyncio
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
 from dotenv import load_dotenv
 import threading
 
@@ -29,7 +28,8 @@ if not BOT_TOKEN:
     exit(1)
 
 # Создаем приложение Telegram
-telegram_app = Application.builder().token(BOT_TOKEN).build()
+updater = Updater(token=BOT_TOKEN, use_context=True)
+dispatcher = updater.dispatcher
 
 # HTML шаблон для Web App
 WEBAPP_HTML = """
@@ -135,7 +135,7 @@ WEBAPP_HTML = """
 """
 
 # Обработчик команды /start
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def start_command(update, context):
     """Обработчик команды /start"""
     logger.info(f"🎯 Получена команда /start от: {update.effective_user.first_name}")
     
@@ -157,7 +157,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = InlineKeyboardMarkup([[webapp_button]])
     
     try:
-        await update.message.reply_text(
+        update.message.reply_text(
             welcome_message,
             parse_mode='Markdown',
             reply_markup=keyboard
@@ -167,24 +167,24 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"❌ Ошибка при отправке сообщения: {e}")
 
 # Обработчик callback_query
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def button_callback(update, context):
     """Обработчик нажатий на кнопки"""
     query = update.callback_query
-    await query.answer()
+    query.answer()
 
 # Обработчик Web App данных
-async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def web_app_data(update, context):
     """Обработчик данных от Web App"""
     logger.info("📱 Получены данные от Web App")
     chat_id = update.effective_chat.id
     
     try:
-        await update.message.reply_text("🎉 Данные получены! Скоро здесь будет обработка результатов игры.")
+        update.message.reply_text("🎉 Данные получены! Скоро здесь будет обработка результатов игры.")
     except Exception as e:
         logger.error(f"❌ Ошибка при обработке Web App данных: {e}")
 
 # Обработчик ошибок
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+def error_handler(update, context):
     """Обработчик ошибок"""
     logger.error(f"❌ Ошибка бота: {context.error}")
 
@@ -195,14 +195,11 @@ def run_bot():
         logger.info("🤖 Запуск Telegram бота...")
         
         # Добавляем обработчики
-        telegram_app.add_handler(CommandHandler("start", start_command))
-        telegram_app.add_handler(CallbackQueryHandler(button_callback))
+        dispatcher.add_handler(CommandHandler("start", start_command))
+        dispatcher.add_handler(CallbackQueryHandler(button_callback))
         
         # Запускаем бота
-        telegram_app.run_polling(
-            allowed_updates=Update.ALL_TYPES,
-            drop_pending_updates=True
-        )
+        updater.start_polling(drop_pending_updates=True)
         
     except Exception as e:
         logger.error(f"❌ Ошибка запуска бота: {e}")
@@ -217,8 +214,8 @@ def home():
 def webhook():
     """Webhook для Telegram"""
     try:
-        update = Update.de_json(request.get_json(), telegram_app.bot)
-        telegram_app.process_update(update)
+        update = Update.de_json(request.get_json(), updater.bot)
+        dispatcher.process_update(update)
         return jsonify({"status": "ok"})
     except Exception as e:
         logger.error(f"❌ Ошибка webhook: {e}")
